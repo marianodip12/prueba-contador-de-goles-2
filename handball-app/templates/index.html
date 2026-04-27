@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Handball Goal Counter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 700px;
+            margin: 40px auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header { text-align: center; margin-bottom: 30px; }
+        .icon { font-size: 4em; margin-bottom: 10px; }
+        h1 { color: #667eea; font-size: 2.2em; margin-bottom: 10px; }
+        .subtitle { color: #666; font-size: 1em; }
+        .links {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .link-btn {
+            font-size: 12px;
+            padding: 6px 12px;
+            background: #f0f4ff;
+            color: #667eea;
+            border-radius: 15px;
+            text-decoration: none;
+        }
+        .form-group { margin-bottom: 20px; }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            outline: none;
+        }
+        input[type="text"]:focus { border-color: #667eea; }
+        button {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover:not(:disabled) { background: #5568d3; }
+        button:disabled { background: #999; cursor: not-allowed; }
+        .alert {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .alert-error { background: #fee; border: 1px solid #fcc; color: #c33; }
+        .alert-success { background: #efe; border: 1px solid #cfc; color: #3c3; }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7f9fc;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+        }
+        .result h3 { color: #667eea; margin-bottom: 15px; }
+        .stat {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        .timestamps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .timestamp {
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .progress {
+            margin-top: 15px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">🏐⚽</div>
+            <h1>Handball Goal Counter</h1>
+            <p class="subtitle">Detecta goles automáticamente desde YouTube</p>
+            <div class="links">
+                <a href="/api/check" target="_blank" class="link-btn">🔍 Verificar Sistema</a>
+                <a href="/health" target="_blank" class="link-btn">💚 Health</a>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>URL de YouTube:</label>
+            <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=..." />
+        </div>
+
+        <button id="btn" onclick="analyze()">🎯 Analizar Video</button>
+
+        <div id="progress" class="progress" style="display:none;">
+            ⏳ Procesando... esto puede tardar 1-3 minutos
+        </div>
+
+        <div id="output"></div>
+    </div>
+
+    <script>
+        async function analyze() {
+            const url = document.getElementById('url').value.trim();
+            const btn = document.getElementById('btn');
+            const output = document.getElementById('output');
+            const progress = document.getElementById('progress');
+            
+            if (!url) {
+                output.innerHTML = '<div class="alert alert-error">❌ Ingresa una URL</div>';
+                return;
+            }
+            
+            if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+                output.innerHTML = '<div class="alert alert-error">❌ URL de YouTube inválida</div>';
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Analizando...';
+            progress.style.display = 'block';
+            output.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult(data.data);
+                } else {
+                    let msg = data.error || 'Error desconocido';
+                    if (data.type) msg = `[${data.type}] ${msg}`;
+                    output.innerHTML = `<div class="alert alert-error">❌ ${msg}</div>`;
+                }
+            } catch (err) {
+                output.innerHTML = `<div class="alert alert-error">❌ Error de conexión: ${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🎯 Analizar Video';
+                progress.style.display = 'none';
+            }
+        }
+        
+        function showResult(data) {
+            const output = document.getElementById('output');
+            
+            const timestamps = (data.goal_timestamps || [])
+                .map(t => `<span class="timestamp">${t}s</span>`)
+                .join('');
+            
+            output.innerHTML = `
+                <div class="result">
+                    <h3>✅ Análisis Completado</h3>
+                    <div class="stat"><strong>⚽ Goles detectados:</strong> ${data.goals_detected}</div>
+                    <div class="stat"><strong>⏱️ Tiempo:</strong> ${data.processing_time}s</div>
+                    <div class="stat"><strong>📹 Duración video:</strong> ${data.video_duration}s</div>
+                    <div class="stat"><strong>🎬 Frames procesados:</strong> ${data.processed_frames} de ${data.total_frames}</div>
+                    <div class="stat">
+                        <strong>📊 Equipos:</strong>
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li>Equipo A: ${data.team_scores.team_a}</li>
+                            <li>Equipo B: ${data.team_scores.team_b}</li>
+                        </ul>
+                    </div>
+                    ${timestamps ? `<div class="stat"><strong>🕒 Momentos:</strong><div class="timestamps">${timestamps}</div></div>` : ''}
+                </div>
+            `;
+        }
+        
+        document.getElementById('url').addEventListener('keypress', e => {
+            if (e.key === 'Enter') analyze();
+        });
+    </script>
+</body>
+</html>
